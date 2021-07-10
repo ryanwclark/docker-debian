@@ -442,7 +442,114 @@ jobs:
           platforms: linux/amd64,linux/arm/v7
           push: true
           tags: ${{ steps.prep.outputs.tags }}
+  bullseye-slim:
+    env:
+      RELEASE: bullseye-slim
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
 
+      - name: Prepare
+        id: prep
+        run: |
+          DOCKER_IMAGE=${GITHUB_REPOSITORY/docker-/}
+          if [[ $GITHUB_REF == refs/heads/* ]]; then
+            BRANCH=${GITHUB_REF#refs/heads/}
+
+            case ${BRANCH} in
+              "main" | "master" )
+                  if [ -n "${{ secrets.LATEST }}" ] ; then
+                    if [ "${RELEASE}" = "${{ secrets.LATEST }}" ]; then
+                      BRANCHTAG="${DOCKER_IMAGE}:${RELEASE},${DOCKER_IMAGE}:${RELEASE}-latest,${DOCKER_IMAGE}:latest"
+                    else
+                      BRANCHTAG="${DOCKER_IMAGE}:${RELEASE},${DOCKER_IMAGE}:${RELEASE-latest}"
+                    fi
+                  else
+                     BRANCHTAG="${DOCKER_IMAGE}:${RELEASE},${DOCKER_IMAGE}:${RELEASE}-latest"
+                  fi
+                ;;
+              "develop" )
+                  BRANCHTAG="${DOCKER_IMAGE}:develop"
+                ;;
+              * )
+                  if [ -n "${{ secrets.LATEST }}" ] ; then
+                    if [ "${BRANCHTAG}" = "${{ secrets.LATEST }}" ]; then
+                      BRANCHTAG="${DOCKER_IMAGE}:${BRANCH},${DOCKER_IMAGE}:${BRANCH}-latest,${DOCKER_IMAGE}:latest"
+                    else
+                      BRANCHTAG="${DOCKER_IMAGE}:${BRANCH},${DOCKER_IMAGE}:${BRANCH}-latest"
+                    fi
+                  else
+                    BRANCHTAG="${DOCKER_IMAGE}:${BRANCH},${DOCKER_IMAGE}:${BRANCH}-latest"
+                  fi
+                ;;
+            esac
+          fi
+
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            GITTAG="${DOCKER_IMAGE}:$(echo $GITHUB_REF | sed 's|refs/tags/||g')_${RELEASE}"
+          fi
+
+          if [ -n "${BRANCHTAG}" ] && [ -n "${GITTAG}" ]; then
+            TAGS=${BRANCHTAG},${GITTAG}
+          else
+            TAGS="${BRANCHTAG}${GITTAG}"
+          fi
+
+          echo ::set-output name=tags::${TAGS}
+          echo ::set-output name=docker_image::${DOCKER_IMAGE}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Label
+        id: Label
+        run: |
+          if [ -f "Dockerfile.debslim" ] ; then
+            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile.debslim
+            if [ -f "CHANGELOG.md" ] ; then
+              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile.debslim
+            fi
+
+            if [[ $GITHUB_REF == refs/tags/* ]]; then
+              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile.debslim
+            fi
+
+            if [[ $GITHUB_REF == refs/heads/* ]]; then
+              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile.debslim
+            fi
+          fi
+
+      - name: Switch
+        id: Switch
+        run: |
+          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile.debslim
+
+      - name: Build
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./Dockerfile.debslim
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+          push: true
+          tags: ${{ steps.prep.outputs.tags }}
   buster-slim:
     env:
       RELEASE: buster-slim
@@ -519,35 +626,35 @@ jobs:
       - name: Label
         id: Label
         run: |
-          if [ -f "Dockerfile" ] ; then
-            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile
+          if [ -f "Dockerfile.debslim" ] ; then
+            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile.debslim
             if [ -f "CHANGELOG.md" ] ; then
-              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/tags/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/heads/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile.debslim
             fi
           fi
 
       - name: Switch
         id: Switch
         run: |
-          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile
+          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile.debslim
 
       - name: Build
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.debslim
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ${{ steps.prep.outputs.tags }}
@@ -627,35 +734,35 @@ jobs:
       - name: Label
         id: Label
         run: |
-          if [ -f "Dockerfile" ] ; then
-            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile
+          if [ -f "Dockerfile.debslim" ] ; then
+            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile.debslim
             if [ -f "CHANGELOG.md" ] ; then
-              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/tags/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/heads/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile.debslim
             fi
           fi
 
       - name: Switch
         id: Switch
         run: |
-          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile
+          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile.debslim
 
       - name: Build
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.debslim
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: true
           tags: ${{ steps.prep.outputs.tags }}
@@ -735,35 +842,35 @@ jobs:
       - name: Label
         id: Label
         run: |
-          if [ -f "Dockerfile" ] ; then
-            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile
-            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile
+          if [ -f "Dockerfile.debslim" ] ; then
+            sed -i "/FROM .*/a LABEL base_git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_commit=\"${GITHUB_SHA}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_git_committed_by=\"${GITHUB_ACTOR}\"" Dockerfile.debslim
+            sed -i "/FROM .*/a LABEL base_image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" Dockerfile.debslim
             if [ -f "CHANGELOG.md" ] ; then
-              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/tags/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_tag=\"${GITHUB_REF#refs/tags/v}\"" Dockerfile.debslim
             fi
 
             if [[ $GITHUB_REF == refs/heads/* ]]; then
-              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile
+              sed -i "/FROM .*/a LABEL base_git_branch=\"${GITHUB_REF#refs/heads/}\"" Dockerfile.debslim
             fi
           fi
 
       - name: Switch
         id: Switch
         run: |
-          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile
+          sed -i "s|FROM debian:.*|FROM debian:${RELEASE}|g" Dockerfile.debslim
 
       - name: Build
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.debslim
           platforms: linux/amd64,linux/arm/v7
           push: true
           tags: ${{ steps.prep.outputs.tags }}
