@@ -24,7 +24,7 @@ RUN debArch=$(dpkg --print-architecture) && \
 		*) : ;; \
 	esac; \
     set -ex && \
-    if [ $(cat /etc/os-release |grep "VERSION=" | awk 'NR>1{print $1}' RS='(' FS=')') != "jessie-slim" ] ; then zstd=zstd; fi ; \
+    if [ $(cat /etc/os-release |grep "VERSION=" | awk 'NR>1{print $1}' RS='(' FS=')') != "jessie" ] ; then zstd=zstd; fi ; \
     apt-get update && \
     apt-get upgrade -y && \
     ZABBIX_BUILD_DEPS=' \
