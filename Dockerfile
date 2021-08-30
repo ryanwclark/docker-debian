@@ -27,7 +27,7 @@ RUN debArch=$(dpkg --print-architecture) && \
     if [ $(cat /etc/os-release |grep "VERSION=" | awk 'NR>1{print $1}' RS='(' FS=')') != "jessie"] ; then zstd=zstd; fi ; \
     apt-get update && \
     apt-get upgrade -y && \
-    ZABBIX_BUILD_DEPS=' \
+    ZABBIX_BUILD_DEPS=" \
                     autoconf \
                     automake \
                     autotools-dev\
@@ -37,7 +37,7 @@ RUN debArch=$(dpkg --print-architecture) && \
                     libpcre3-dev \
                     libssl-dev \
                     zlib1g-dev \
-                    ' && \
+                    " && \
     apt-get install -y --no-install-recommends \
                     apt-transport-https \
                     apt-utils \
