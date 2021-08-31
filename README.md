@@ -7,6 +7,7 @@ Stupid simple Debian build
 [![Docker Pulls](https://img.shields.io/docker/pulls/ryanwclark/debian.svg?style=flat-square&logo=docker)](https://hub.docker.com/r/ryanwclark/debian/)
 [![Debian](https://img.shields.io/badge/Debian-A81D33?style=flat-square&logo=debian&logoColor=white)](https://www.debian.org/)
 
+* * *
 
 ## About
 

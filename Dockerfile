@@ -51,7 +51,6 @@ RUN debArch=$(dpkg --print-architecture) && \
                     less \
                     logrotate \
                     msmtp \
-                    nano \
                     net-tools \
                     netcat-openbsd \
                     procps \
