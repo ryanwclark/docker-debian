@@ -10,6 +10,7 @@ Stupid simple Debian build
 * * *
 
 ## About
+![Debian Logo](debian.svg)
 
 Dockerfile to build an [debian](https://www.debian.org/) container image to be used as a base for building other images.
 
@@ -245,10 +246,10 @@ environment variables will be displayed in output.
 
 Hint, also change the Group ID to your local development users UID & GID and avoid Docker permission issues when developing.
 
-| Parameter                        | Description                                                                 |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `CONTAINER_USER_<USERNAME>`      | The user's UID in /etc/passwd will be modified with new UID                 |
-| `CONTAINER_GROUP_<GROUPNAME>`    | The group's GID in /etc/group and /etc/passwd will be modified with new GID |
+| Parameter                         | Description                                                                 |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `CONTAINER_USER_<USERNAME>`       | The user's UID in /etc/passwd will be modified with new UID                 |
+| `CONTAINER_GROUP_<GROUPNAME>`     | The group's GID in /etc/group and /etc/passwd will be modified with new GID |
 | `CONTAINER_GROUP_ADD_<GROUPNAME>` | The username will be added in /etc/group after the group name defined       |
 
 #### Process Watchdog
